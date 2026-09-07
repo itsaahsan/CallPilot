@@ -1,6 +1,12 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { Mission } from "@/types";
+import { pgEnabled, pgGetMission, pgListMissions, pgNextMissionNumber, pgSaveMission } from "@/lib/pgstore";
+
+// Durable Postgres is used whenever DATABASE_URL is set (required on
+// serverless, where local files are ephemeral and per-instance).
+// Otherwise a local JSON file backs development.
+const usePg = () => pgEnabled();
 
 const DATA_FILE = path.join(process.cwd(), ".data", "missions.json");
 let mem: Mission[] = [];
@@ -26,14 +32,17 @@ async function persist() {
 }
 
 export async function listMissions(): Promise<Mission[]> {
+  if (usePg()) return pgListMissions();
   await load();
   return [...mem].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 export async function getMission(id: string): Promise<Mission | null> {
+  if (usePg()) return pgGetMission(id);
   await load();
   return mem.find((m) => m.id === id) ?? null;
 }
 export async function saveMission(m: Mission): Promise<Mission> {
+  if (usePg()) return pgSaveMission(m);
   await load();
   const i = mem.findIndex((x) => x.id === m.id);
   if (i >= 0) mem[i] = m; else mem.push(m);
@@ -41,6 +50,7 @@ export async function saveMission(m: Mission): Promise<Mission> {
   return m;
 }
 export async function nextMissionNumber(): Promise<number> {
+  if (usePg()) return pgNextMissionNumber();
   await load();
   const n = counter++;
   await persist();
