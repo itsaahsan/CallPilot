@@ -139,4 +139,4 @@ Supabase persistence + auth, multi-recipient batch missions, approval-callback m
 
 ## Hackathon Submission (CALL-E: Your Code Is Calling)
 
-Contribution area: **User-facing Apps** → `apps/typescript/callpilot` in [awesome-phone-call-agents](https://github.com/CALLE-AI/awesome-phone-call-agents). Step-by-step PR checklist, 3-minute video script, and Devpost field list: see [`submission/SUBMISSION.md`](submission/SUBMISSION.md).
+Contribution area: **User-facing Apps** → `apps/typescript/callpilot` in [awesome-phone-call-agents](https://github.com/CALLE-AI/awesome-phone-call-agents).
