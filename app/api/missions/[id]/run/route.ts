@@ -34,6 +34,15 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
 
   const started = Date.now();
   const live = !mission.demoMode && calleConfigured();
+  // Abuse guard: public deployments keep demo mode open but block live
+  // dialing unless the owner explicitly enables it (ALLOW_LIVE_RUNS=true).
+  // Without this, anyone could spend the owner's CALL-E credits.
+  if (live && process.env.ALLOW_LIVE_RUNS !== "true") {
+    return NextResponse.json(
+      { error: "Live calls are disabled on this public demo (demo mode only). The owner can enable them with ALLOW_LIVE_RUNS=true." },
+      { status: 403 }
+    );
+  }
   const providerName = live ? "calle-live" : "calle-mock";
   mission.provider = providerName;
   mission.status = "dialing";
