@@ -161,6 +161,7 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
     return NextResponse.json({ mission: done });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Call failed";
+    console.error("[mission-run] failed:", message, e instanceof Error ? e.stack : e);
     const f = await fail(message);
     return NextResponse.json({ mission: f, error: f.error }, { status: 502 });
   }

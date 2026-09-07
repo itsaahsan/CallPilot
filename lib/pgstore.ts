@@ -15,7 +15,10 @@ export function pgEnabled(): boolean {
 }
 
 function client() {
-  if (!sql) sql = postgres(process.env.DATABASE_URL as string, { max: 3, idle_timeout: 10, connect_timeout: 10 });
+  // prepare:false is REQUIRED for pooled connections (Neon pooler /
+  // PgBouncer transaction mode): prepared statements do not survive
+  // across pooled sessions and repeat queries would fail.
+  if (!sql) sql = postgres(process.env.DATABASE_URL as string, { max: 3, idle_timeout: 10, connect_timeout: 10, prepare: false });
   return sql;
 }
 
@@ -37,8 +40,27 @@ async function ensureSchema() {
   schemaReady = true;
 }
 
-function rowToMission(
-  t: Record<string, unknown>,
+/** Self-healing decode: unwrap values that were stored as multiply-stringified JSON. */
+function deepParse(v: unknown, depth = 0): unknown {
+  let cur = v;
+  for (let i = 0; i < 10 && typeof cur === "string"; i++) {
+    try { cur = JSON.parse(cur); } catch { break; }
+  }
+  void depth;
+  return cur;
+}
+
+function asStrArray(v: unknown): string[] {
+  const p = deepParse(v);
+  return Array.isArray(p) ? p.map(String) : [];
+}
+
+function asRecord(v: unknown): Record<string, unknown> | null {
+  const p = deepParse(v);
+  return p && typeof p === "object" && !Array.isArray(p) ? (p as Record<string, unknown>) : null;
+}
+
+function rowToMission(  t: Record<string, unknown>,
   call: Record<string, unknown> | null,
   events: Record<string, unknown>[],
   agent: Record<string, unknown> | null,
@@ -52,8 +74,8 @@ function rowToMission(
     phoneE164: t["phone_e164"] as string,
     category: t["category"] as Mission["category"],
     goal: t["goal"] as string,
-    questions: (t["questions"] as string[]) ?? [],
-    constraints: (t["constraints"] as string[]) ?? [],
+    questions: asStrArray(t["questions"]),
+    constraints: asStrArray(t["constraints"]),
     desiredOutcome: (t["desired_outcome"] as string) ?? "",
     safetyMode: t["safety_mode"] as Mission["safetyMode"],
     demoMode: (t["demo_mode"] as boolean) ?? false,
@@ -64,11 +86,11 @@ function rowToMission(
       ? {
           objective: (t["goal"] as string) ?? "",
           target: (t["target_name"] as string) ?? "",
-          questions: (t["questions"] as string[]) ?? [],
-          constraints: (t["constraints"] as string[]) ?? [],
+          questions: asStrArray(t["questions"]),
+          constraints: asStrArray(t["constraints"]),
           success_condition: (t["desired_outcome"] as string) ?? "",
           agentInstructions: agent["instructions"] as string,
-          resultSchema: (agent["result_schema"] as Record<string, unknown>) ?? {},
+          resultSchema: asRecord(agent["result_schema"]) ?? {},
           safety: { mode: t["safety_mode"] as Mission["safetyMode"], guardrails: GUARDRAILS[t["safety_mode"] as Mission["safetyMode"]] ?? [] },
         }
       : null,
@@ -80,9 +102,9 @@ function rowToMission(
       ts: new Date(e["created_at"] as string).toISOString(),
       kind: e["kind"] as string,
       message: e["message"] as string,
-      meta: (e["meta"] as Record<string, unknown>) ?? {},
+      meta: asRecord(e["meta"]) ?? {},
     })),
-    result: (result?.["structured"] as Mission["result"]) ?? null,
+    result: (asRecord(result?.["structured"]) as Mission["result"]) ?? null,
     elapsedSeconds: (call?.["elapsed_seconds"] as number) ?? 0,
     provider: ((call?.["provider"] as string) ?? "calle-mock") as Mission["provider"],
     error: (call?.["error"] as string) ?? null,
